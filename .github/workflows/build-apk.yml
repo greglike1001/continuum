@@ -1,9 +1,6 @@
 name: Build APK
 
-on:
-  push:
-    branches: [ '${{ github.ref_name }}' ]
-  workflow_dispatch: {}
+on: [push, workflow_dispatch]
 
 jobs:
   build:
