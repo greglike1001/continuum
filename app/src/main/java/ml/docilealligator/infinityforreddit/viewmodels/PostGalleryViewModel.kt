@@ -52,10 +52,18 @@ class PostGalleryViewModel(
                 val response = UploadImageUtils.uploadImage(
                     oauthRetrofit, uploadMediaRetrofit, contentResolver, accessToken, uri, true, false
                 )
-                val mediaId = JSONObject(response).getJSONObject(JSONUtils.ASSET_KEY).getString(JSONUtils.ASSET_ID_KEY)
-                handler.post {
-                    addOutcome(UploadOutcome.Uploaded(id, mediaId))
-                    onUploadFinished()
+                if (response == null) {
+                    handler.post {
+                        addOutcome(UploadOutcome.Failed(id))
+                        _uploadFailed.call()
+                        onUploadFinished()
+                    }
+                } else {
+                    val mediaId = JSONObject(response).getJSONObject(JSONUtils.ASSET_KEY).getString(JSONUtils.ASSET_ID_KEY)
+                    handler.post {
+                        addOutcome(UploadOutcome.Uploaded(id, mediaId))
+                        onUploadFinished()
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

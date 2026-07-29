@@ -1,0 +1,26 @@
+﻿gh.exe : Unknown JSON field: "artifacts"
+At line:4 char:1
++ & gh run view $runId --json status,conclusion,artifacts > run_details ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Unknown JSON field: "artifacts":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Available fields:
+  attempt
+  conclusion
+  createdAt
+  databaseId
+  displayTitle
+  event
+  headBranch
+  headSha
+  jobs
+  name
+  number
+  startedAt
+  status
+  updatedAt
+  url
+  workflowDatabaseId
+  workflowName
+

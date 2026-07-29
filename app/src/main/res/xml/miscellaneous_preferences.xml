@@ -57,6 +57,13 @@
         app:title="@string/settings_language_title"
         app:useSimpleSummaryProvider="true" />
 
+    <ml.docilealligator.infinityforreddit.customviews.preference.CustomFontListPreference
+        app:defaultValue=""
+        app:key="speech_tts_engine"
+        app:title="@string/settings_tts_engine_title"
+        app:summary="@string/settings_tts_engine_summary"
+        app:useSimpleSummaryProvider="true" />
+
     <ml.docilealligator.infinityforreddit.customviews.preference.CustomFontSwitchPreference
         app:defaultValue="false"
         app:key="enable_fold_support"

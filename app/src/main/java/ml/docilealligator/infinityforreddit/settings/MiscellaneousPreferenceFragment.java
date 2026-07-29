@@ -56,17 +56,20 @@ public class MiscellaneousPreferenceFragment extends CustomFontPreferenceFragmen
         ListPreference mainPageBackButtonActionListPreference = findPreference(SharedPreferencesUtils.MAIN_PAGE_BACK_BUTTON_ACTION);
         SwitchPreference savePostFeedScrolledPositionSwitch = findPreference(SharedPreferencesUtils.SAVE_FRONT_PAGE_SCROLLED_POSITION);
         ListPreference languageListPreference = findPreference(SharedPreferencesUtils.LANGUAGE);
+        ListPreference ttsEngineListPreference = findPreference(SharedPreferencesUtils.SPEECH_TTS_ENGINE);
         EditTextPreference postFeedMaxResolution = findPreference(SharedPreferencesUtils.POST_FEED_MAX_RESOLUTION);
 
         List<String[]> ephemeralBrowsers = findEphemeralBrowsers(mActivity);
         boolean hasEphemeralBrowser = !ephemeralBrowsers.isEmpty();
 
         List<String[]> installedBrowsers = findInstalledBrowsers(mActivity);
+        List<String[]> installedTtsEngines = findInstalledTtsEngines(mActivity);
 
         String linkHandlerKey = mActivity.accountName + SharedPreferencesUtils.LINK_HANDLER_BASE;
         String ephemeralPkgKey = mActivity.accountName + SharedPreferencesUtils.EPHEMERAL_CUSTOM_TAB_PACKAGE_BASE;
         String specificPkgKey = mActivity.accountName + SharedPreferencesUtils.SPECIFIC_BROWSER_PACKAGE_BASE;
         String currentLinkHandler = mSharedPreferences.getString(linkHandlerKey, "0");
+        String ttsEngineKey = SharedPreferencesUtils.SPEECH_TTS_ENGINE;
 
         if (linkHandlerListPreference != null) {
             linkHandlerListPreference.setPersistent(false);
@@ -121,6 +124,24 @@ public class MiscellaneousPreferenceFragment extends CustomFontPreferenceFragmen
                 });
             } else {
                 specificBrowserListPreference.setVisible(false);
+            }
+        }
+
+        // Populate TTS engine list preference
+        if (ttsEngineListPreference != null) {
+            if (!installedTtsEngines.isEmpty()) {
+                populateTtsEngineEntries(ttsEngineListPreference, installedTtsEngines);
+                ttsEngineListPreference.setPersistent(false);
+                String savedTts = mSharedPreferences.getString(ttsEngineKey, "");
+                if (savedTts != null && !savedTts.isEmpty()) {
+                    ttsEngineListPreference.setValue(savedTts);
+                }
+                ttsEngineListPreference.setOnPreferenceChangeListener((preference, newValue) -> {
+                    mSharedPreferences.edit().putString(ttsEngineKey, (String) newValue).apply();
+                    return true;
+                });
+            } else {
+                ttsEngineListPreference.setVisible(false);
             }
         }
 
@@ -226,6 +247,37 @@ public class MiscellaneousPreferenceFragment extends CustomFontPreferenceFragmen
         if ((current == null || !values.contains(current)) && !values.isEmpty()) {
             pref.setValue(values.get(0).toString());
         }
+    }
+
+    private static void populateTtsEngineEntries(ListPreference pref, List<String[]> engines) {
+        List<CharSequence> entries = new ArrayList<>();
+        List<CharSequence> values = new ArrayList<>();
+        for (String[] e : engines) {
+            entries.add(e[0]);
+            values.add(e[1]);
+        }
+        pref.setEntries(entries.toArray(new CharSequence[0]));
+        pref.setEntryValues(values.toArray(new CharSequence[0]));
+    }
+
+    private static List<String[]> findInstalledTtsEngines(Context context) {
+        PackageManager pm = context.getPackageManager();
+        int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                ? PackageManager.MATCH_ALL
+                : PackageManager.GET_DISABLED_COMPONENTS;
+        Intent svcQuery = new Intent(android.speech.tts.TextToSpeech.Engine.ACTION_TTS_SERVICE);
+        List<String[]> engines = new ArrayList<>();
+        for (ResolveInfo info : pm.queryIntentServices(svcQuery, flags)) {
+            ServiceInfo si = info.serviceInfo;
+            if (si == null || !si.enabled) continue;
+            try {
+                String label = pm.getApplicationLabel(pm.getApplicationInfo(si.packageName, 0)).toString();
+                engines.add(new String[]{label, si.packageName});
+            } catch (PackageManager.NameNotFoundException ignored) {
+            }
+        }
+        Collections.sort(engines, Comparator.comparing(b -> b[0].toLowerCase()));
+        return engines;
     }
 
     private void filterLinkHandlerEntries(ListPreference pref, boolean allowEphemeral) {

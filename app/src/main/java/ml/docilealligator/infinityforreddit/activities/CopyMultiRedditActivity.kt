@@ -319,15 +319,15 @@ class CopyMultiRedditActivity : BaseActivity() {
         }
     }
 
-    override fun getDefaultSharedPreferences(): SharedPreferences? {
+    override fun getDefaultSharedPreferences(): SharedPreferences {
         return mSharedPreferences
     }
 
-    override fun getCurrentAccountSharedPreferences(): SharedPreferences? {
+    override fun getCurrentAccountSharedPreferences(): SharedPreferences {
         return mCurrentAccountSharedPreferences
     }
 
-    override fun getCustomThemeWrapper(): CustomThemeWrapper? {
+    override fun getCustomThemeWrapper(): CustomThemeWrapper {
         return mCustomThemeWrapper
     }
 
