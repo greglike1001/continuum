@@ -16,6 +16,8 @@ import androidx.browser.customtabs.CustomTabsService;
 import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.SwitchPreference;
+import androidx.appcompat.app.AlertDialog;
+import android.widget.EditText;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -141,7 +143,57 @@ public class MiscellaneousPreferenceFragment extends CustomFontPreferenceFragmen
                     return true;
                 });
             } else {
-                ttsEngineListPreference.setVisible(false);
+                // No TTS engines detected — allow manual package entry by showing a single-entry ListPreference
+                List<CharSequence> entries = new ArrayList<>();
+                List<CharSequence> values = new ArrayList<>();
+                entries.add(mActivity.getString(R.string.settings_tts_engine_manual_entry));
+                values.add("__manual__");
+                ttsEngineListPreference.setEntries(entries.toArray(new CharSequence[0]));
+                ttsEngineListPreference.setEntryValues(values.toArray(new CharSequence[0]));
+                ttsEngineListPreference.setPersistent(false);
+                String savedTts = mSharedPreferences.getString(ttsEngineKey, "");
+                if (savedTts != null && !savedTts.isEmpty()) {
+                    // If user previously saved a manual package, show it as the selected value
+                    List<CharSequence> entries2 = new ArrayList<>();
+                    List<CharSequence> values2 = new ArrayList<>();
+                    entries2.add(savedTts);
+                    values2.add(savedTts);
+                    ttsEngineListPreference.setEntries(entries2.toArray(new CharSequence[0]));
+                    ttsEngineListPreference.setEntryValues(values2.toArray(new CharSequence[0]));
+                    ttsEngineListPreference.setValue(savedTts);
+                }
+
+                ttsEngineListPreference.setOnPreferenceChangeListener((preference, newValue) -> {
+                    String nv = (String) newValue;
+                    if ("__manual__".equals(nv)) {
+                        final EditText input = new EditText(mActivity);
+                        input.setHint("com.supertonic.tts");
+                        new AlertDialog.Builder(mActivity)
+                                .setTitle(R.string.settings_tts_engine_manual_entry)
+                                .setView(input)
+                                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                                    String pkg = input.getText().toString().trim();
+                                    if (!pkg.isEmpty()) {
+                                        mSharedPreferences.edit().putString(ttsEngineKey, pkg).apply();
+                                        List<CharSequence> eList = new ArrayList<>();
+                                        List<CharSequence> vList = new ArrayList<>();
+                                        eList.add(pkg);
+                                        vList.add(pkg);
+                                        ttsEngineListPreference.setEntries(eList.toArray(new CharSequence[0]));
+                                        ttsEngineListPreference.setEntryValues(vList.toArray(new CharSequence[0]));
+                                        ttsEngineListPreference.setValue(pkg);
+                                    }
+                                })
+                                .setNegativeButton(android.R.string.cancel, null)
+                                .show();
+                        return false;
+                    } else {
+                        mSharedPreferences.edit().putString(ttsEngineKey, nv).apply();
+                        return true;
+                    }
+                });
+
+                ttsEngineListPreference.setVisible(true);
             }
         }
 
