@@ -317,7 +317,7 @@ public class MiscellaneousPreferenceFragment extends CustomFontPreferenceFragmen
         int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 ? PackageManager.MATCH_ALL
                 : PackageManager.GET_DISABLED_COMPONENTS;
-        Intent svcQuery = new Intent(android.speech.tts.TextToSpeech.Engine.ACTION_TTS_SERVICE);
+        Intent svcQuery = new Intent("android.intent.action.TTS_SERVICE");
         List<String[]> engines = new ArrayList<>();
         for (ResolveInfo info : pm.queryIntentServices(svcQuery, flags)) {
             ServiceInfo si = info.serviceInfo;
