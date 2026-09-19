@@ -117,13 +117,12 @@ def retarget(path, old, new, label):
     return True
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("roots", nargs="+", help="baksmali output directories")
-    parser.add_argument("--report-only", action="store_true")
-    args = parser.parse_args()
+def main_with_roots(roots, report_only=False):
+    """Apply every patch to the given baksmali output directories.
 
-    roots = [Path(r) for r in args.roots]
+    Returns 0 on success, a non-zero status naming the failed step otherwise.
+    """
+    roots = [Path(r) for r in roots]
     report_references(
         roots,
         [
@@ -133,7 +132,7 @@ def main():
             f"{OWNER}->hasPiP:Z",
         ],
     )
-    if args.report_only:
+    if report_only:
         return 0
 
     devices = find_class(roots, ANDROID_DEVICES)
@@ -175,6 +174,14 @@ def main():
 
     log("all patches applied")
     return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("roots", nargs="+", help="baksmali output directories")
+    parser.add_argument("--report-only", action="store_true")
+    args = parser.parse_args()
+    return main_with_roots(args.roots, report_only=args.report_only)
 
 
 if __name__ == "__main__":

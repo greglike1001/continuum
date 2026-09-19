@@ -31,27 +31,37 @@ does not implement framework PiP gets the overlay window instead of a crash.
 
 ## Building
 
-Push to the branch, or run the **VLC PiP APK** workflow manually
-(`.github/workflows/vlc-pip-apk.yml`). It patches `arm64-v8a` and
-`armeabi-v7a` by default and uploads the APKs plus the keystore as the
-`vlc-pip-apk` artifact.
-
-Locally:
+One command, anywhere with Python 3 and a JVM (Windows, macOS, Linux). It
+downloads the official APK, its own tooling (smali, baksmali,
+uber-apk-signer), patches, repacks and signs:
 
 ```sh
-export BAKSMALI_JAR=/path/to/baksmali-2.5.2.jar
-export SMALI_JAR=/path/to/smali-2.5.2.jar
-export BUILD_TOOLS=$ANDROID_SDK_ROOT/build-tools/35.0.0
-export KEYSTORE=/path/to/vlcpip.keystore KEYSTORE_PASS=vlcpip KEY_ALIAS=vlcpip
-scripts/vlc-pip/patch-vlc-pip.sh VLC-Android-3.7.1-arm64-v8a.apk VLC-PiP.apk
+python3 scripts/vlc-pip/vlc_pip_build.py --abi arm64-v8a
 ```
 
-The script fails loudly if the classes or methods it expects are not in the
-APK, which is what should happen when a future VLC release reshuffles them.
+Useful options:
 
-Only the dex entries that hold the two patched classes are rebuilt. Every
-other entry in the APK is copied across untouched, then the archive is
-zipaligned and re-signed with v1, v2 and v3 signatures.
+- `--abi armeabi-v7a` — repeatable; build the 32 bit APK as well, for a TV
+  that rejects the 64 bit one.
+- `--version 3.7.1` — pin a VLC release instead of taking the newest.
+- `--input some.apk` — patch an APK you already have rather than downloading.
+- `--keystore mine.jks --ks-pass … --ks-alias …` — sign with your own key
+  instead of uber-apk-signer's debug key, so later rebuilds install over
+  this one.
+
+No Android SDK is needed: uber-apk-signer carries its own zipalign and does
+v1, v2 and v3 signing. The script fails loudly if the classes or methods it
+expects are not in the APK, which is what should happen when a future VLC
+release reshuffles them.
+
+Only the dex parts holding the two patched classes are rebuilt. Every other
+entry is copied across with its original compression, so `resources.arsc`
+and the native libraries stay stored, and the old signature is dropped
+before re-signing.
+
+The **VLC PiP APK** workflow (`.github/workflows/vlc-pip-apk.yml`) runs the
+same script on a runner and uploads the APKs plus the keystore as the
+`vlc-pip-apk` artifact.
 
 ## Self-test
 

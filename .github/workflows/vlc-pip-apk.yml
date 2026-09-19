@@ -72,69 +72,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Locate Android build-tools
-        run: |
-          set -euo pipefail
-          sdk=${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}
-          tools=$(ls -1d "$sdk"/build-tools/* 2>/dev/null | sort -V | tail -1 || true)
-          if [ -z "$tools" ]; then
-            yes | "$sdk/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0" >/dev/null
-            tools="$sdk/build-tools/35.0.0"
-          fi
-          echo "BUILD_TOOLS=$tools" >> "$GITHUB_ENV"
-          echo "using $tools"
-
-      - name: Fetch smali tooling
-        run: |
-          set -euo pipefail
-          curl -fsSL --retry 3 -o smali.jar "$SMALI_URL"
-          echo "$SMALI_SHA256  smali.jar" | sha256sum -c -
-          curl -fsSL --retry 3 -o baksmali.jar "$BAKSMALI_URL"
-          echo "$BAKSMALI_SHA256  baksmali.jar" | sha256sum -c -
-          echo "SMALI_JAR=$PWD/smali.jar" >> "$GITHUB_ENV"
-          echo "BAKSMALI_JAR=$PWD/baksmali.jar" >> "$GITHUB_ENV"
-
-      - name: Download official VLC APKs
-        id: download
-        env:
-          REQUESTED_VERSION: ${{ github.event.inputs.vlc_version }}
-          ABIS: ${{ github.event.inputs.abis || 'arm64-v8a armeabi-v7a' }}
-        run: |
-          set -euo pipefail
-          base="https://get.videolan.org/vlc-android"
-          version="${REQUESTED_VERSION:-}"
-          if [ -z "$version" ]; then
-            version=$(curl -fsSL "$base/" \
-              | grep -oE 'href="[0-9]+\.[0-9]+\.[0-9]+/"' \
-              | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' \
-              | sort -V | tail -1)
-          fi
-          echo "VLC version: $version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          mkdir -p downloads
-          listing=$(curl -fsSL "$base/$version/")
-          echo "$listing" | grep -oE 'href="[^"]+\.apk"' | sed 's/href="//;s/"//' | sort -u
-          for abi in $ABIS; do
-            file=$(echo "$listing" \
-              | grep -oE "href=\"[^\"]*${abi}[^\"]*\.apk\"" \
-              | sed 's/href="//;s/"//' | sort -u | head -1)
-            if [ -z "$file" ]; then
-              echo "::error::no APK for ABI $abi in $base/$version/"
-              exit 1
-            fi
-            echo "downloading $file"
-            curl -fsSL --retry 3 -o "downloads/$file" "$base/$version/$file"
-            # VideoLAN publishes checksums next to the binaries; use them when present.
-            if curl -fsSL --retry 2 -o "downloads/$file.sha256" "$base/$version/$file.sha256"; then
-              ( cd downloads && sha256sum -c "$file.sha256" )
-            else
-              rm -f "downloads/$file.sha256"
-              echo "no published .sha256 for $file"
-            fi
-          done
-          ls -l downloads
-          sha256sum downloads/*.apk
-
       - name: Create signing key
         run: |
           set -euo pipefail
@@ -146,18 +83,24 @@ jobs:
             -alias "$KEY_ALIAS" \
             -keyalg RSA -keysize 4096 -validity 10950 \
             -dname "CN=VLC PiP sideload build, OU=Personal, O=Personal, C=AU"
-          echo "KEYSTORE=$PWD/vlcpip.keystore" >> "$GITHUB_ENV"
 
-      - name: Patch and sign
+      - name: Build patched APKs
+        id: build
+        env:
+          REQUESTED_VERSION: ${{ github.event.inputs.vlc_version }}
+          ABIS: ${{ github.event.inputs.abis || 'arm64-v8a armeabi-v7a' }}
         run: |
           set -euo pipefail
-          mkdir -p out
-          for apk in downloads/*.apk; do
-            name=$(basename "$apk" .apk)
-            echo "::group::$name"
-            scripts/vlc-pip/patch-vlc-pip.sh "$apk" "out/${name}-pip.apk"
-            echo "::endgroup::"
-          done
+          args=()
+          for abi in $ABIS; do args+=(--abi "$abi"); done
+          if [ -n "${REQUESTED_VERSION:-}" ]; then args+=(--version "$REQUESTED_VERSION"); fi
+          python3 scripts/vlc-pip/vlc_pip_build.py \
+            "${args[@]}" \
+            --out-dir out \
+            --tools-dir tools \
+            --keystore vlcpip.keystore \
+            --ks-pass "$KEYSTORE_PASS" \
+            --ks-alias "$KEY_ALIAS"
           ls -l out
 
       - name: Summarise
@@ -165,13 +108,13 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "## VLC ${{ steps.download.outputs.version }} with Picture-in-Picture unlocked"
+            echo "## VLC with Picture-in-Picture unlocked on Android TV"
             echo
             echo "Signed with a throwaway key (keystore in the artifact, password \`$KEYSTORE_PASS\`, alias \`$KEY_ALIAS\`)."
             echo "The official VLC signature is replaced, so an existing VLC install must be uninstalled first."
             echo
             echo '```'
-            sha256sum out/*.apk 2>/dev/null || echo "no APK produced"
+            sha256sum out/*-pip.apk 2>/dev/null || echo "no APK produced"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -180,7 +123,7 @@ jobs:
         with:
           name: vlc-pip-apk
           path: |
-            out/*.apk
+            out/*-pip.apk
             vlcpip.keystore
           if-no-files-found: warn
           retention-days: 90
