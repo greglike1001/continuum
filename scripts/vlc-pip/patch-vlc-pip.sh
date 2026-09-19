@@ -6,7 +6,8 @@
 # Usage: patch-vlc-pip.sh <input.apk> <output.apk>
 #
 # Environment:
-#   APKTOOL_JAR   path to apktool.jar (ships baksmali/smali)   [required]
+#   BAKSMALI_JAR  path to baksmali.jar                           [required]
+#   SMALI_JAR     path to smali.jar                              [required]
 #   BUILD_TOOLS   Android build-tools dir (zipalign, apksigner) [default: on PATH]
 #   KEYSTORE      keystore used to sign the result              [required]
 #   KEYSTORE_PASS keystore and key password                     [required]
@@ -23,11 +24,13 @@ input=$(readlink -f "$1")
 output=$2
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
-: "${APKTOOL_JAR:?set APKTOOL_JAR to the apktool jar}"
+: "${BAKSMALI_JAR:?set BAKSMALI_JAR to the baksmali jar}"
+: "${SMALI_JAR:?set SMALI_JAR to the smali jar}"
 : "${KEYSTORE:?set KEYSTORE to the signing keystore}"
 : "${KEYSTORE_PASS:?set KEYSTORE_PASS to the keystore password}"
 KEY_ALIAS=${KEY_ALIAS:-vlcpip}
-APKTOOL_JAR=$(readlink -f "$APKTOOL_JAR")
+BAKSMALI_JAR=$(readlink -f "$BAKSMALI_JAR")
+SMALI_JAR=$(readlink -f "$SMALI_JAR")
 KEYSTORE=$(readlink -f "$KEYSTORE")
 
 if [ -n "${BUILD_TOOLS:-}" ]; then
@@ -78,8 +81,7 @@ for dex in "$work"/dex/classes*.dex; do
         continue
     fi
     echo "== disassembling $name (dex api $(dex_api "$dex"))"
-    java -Xmx2g -cp "$APKTOOL_JAR" com.android.tools.smali.baksmali.Main \
-        d "$dex" -o "$work/smali/$name"
+    java -Xmx2g -jar "$BAKSMALI_JAR" d "$dex" -o "$work/smali/$name"
     smali_dirs+=("$work/smali/$name")
     touched+=("$name")
 done
@@ -92,8 +94,7 @@ echo "== reassembling"
 mkdir -p "$work/patched"
 for name in "${touched[@]}"; do
     api=$(dex_api "$work/dex/$name")
-    java -Xmx4g -cp "$APKTOOL_JAR" com.android.tools.smali.smali.Main \
-        a "$work/smali/$name" -o "$work/patched/$name" --api "$api"
+    java -Xmx4g -jar "$SMALI_JAR" a "$work/smali/$name" -o "$work/patched/$name" --api "$api"
     ls -l "$work/patched/$name"
 done
 

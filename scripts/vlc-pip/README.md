@@ -39,7 +39,8 @@ Push to the branch, or run the **VLC PiP APK** workflow manually
 Locally:
 
 ```sh
-export APKTOOL_JAR=/path/to/apktool.jar          # ships baksmali/smali
+export BAKSMALI_JAR=/path/to/baksmali-2.5.2.jar
+export SMALI_JAR=/path/to/smali-2.5.2.jar
 export BUILD_TOOLS=$ANDROID_SDK_ROOT/build-tools/35.0.0
 export KEYSTORE=/path/to/vlcpip.keystore KEYSTORE_PASS=vlcpip KEY_ALIAS=vlcpip
 scripts/vlc-pip/patch-vlc-pip.sh VLC-Android-3.7.1-arm64-v8a.apk VLC-PiP.apk
@@ -47,6 +48,27 @@ scripts/vlc-pip/patch-vlc-pip.sh VLC-Android-3.7.1-arm64-v8a.apk VLC-PiP.apk
 
 The script fails loudly if the classes or methods it expects are not in the
 APK, which is what should happen when a future VLC release reshuffles them.
+
+Only the dex entries that hold the two patched classes are rebuilt. Every
+other entry in the APK is copied across untouched, then the archive is
+zipaligned and re-signed with v1, v2 and v3 signatures.
+
+## Self-test
+
+`selftest.sh` compiles the Kotlin stubs in `selftest/` (same object shape and
+same visibility check as upstream), dexes them, and runs the patcher over the
+result, asserting that `getPipAllowed()` becomes a constant, that the
+`pipAllowed` field is assigned true, and that the visibility check no longer
+calls `getHasPiP()`. It needs `kotlinc`, dx, smali and baksmali:
+
+```sh
+KOTLINC=.../kotlinc/bin/kotlinc DX_JAR=.../dalvik-dx.jar \
+BAKSMALI_JAR=.../baksmali-2.5.2.jar SMALI_JAR=.../smali-2.5.2.jar \
+scripts/vlc-pip/selftest.sh
+```
+
+The workflow runs it as its own job, so the patch logic is verified even when
+VideoLAN's download server is unreachable.
 
 ## Installing on the TV
 

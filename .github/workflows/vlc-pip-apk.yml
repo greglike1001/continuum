@@ -1,7 +1,7 @@
 # Builds a sideloadable VLC for Android APK with Picture-in-Picture unlocked on
 # Android TV (Sony Bravia and friends). The official release APK is downloaded
 # from VideoLAN, its dex is patched (see scripts/vlc-pip/), and the result is
-# re-signed with a throwaway key. Nothing in this repository is built or shipped.
+# re-signed. Nothing in this repository is built or shipped by this workflow.
 name: VLC PiP APK
 
 on:
@@ -26,12 +26,47 @@ permissions:
   contents: read
 
 env:
-  APKTOOL_VERSION: "2.9.3"
-  APKTOOL_SHA256: "7956eb04194300ce0d0a84ad18771eebc94b89fb8d1ddcce8ea4c056818646f4"
+  SMALI_URL: "https://bitbucket.org/JesusFreke/smali/downloads/smali-2.5.2.jar"
+  SMALI_SHA256: "9544299578b16f771d8aa8eaefe0d3718ca03478c16f3c356f2fcf1366bfb116"
+  BAKSMALI_URL: "https://bitbucket.org/JesusFreke/smali/downloads/baksmali-2.5.2.jar"
+  BAKSMALI_SHA256: "d3116248cce4f82ec5a31eb7f95ee75daff42ddf6eed0ab573973dc53fbad2e5"
+  KOTLINC_URL: "https://github.com/JetBrains/kotlin/releases/download/v2.1.20/kotlin-compiler-2.1.20.zip"
+  KOTLINC_SHA256: "a118197b0de55ffab2bc8d5cd03a5e39033cfb53383d6931bc761dec0784891a"
+  DX_URL: "https://repo1.maven.org/maven2/com/jakewharton/android/repackaged/dalvik-dx/16.0.1/dalvik-dx-16.0.1.jar"
+  DX_SHA256: "1e4b645628e3bdb097b5331d669e177ef235a551582a8c646dbe36865e541907"
   KEYSTORE_PASS: "vlcpip"
   KEY_ALIAS: "vlcpip"
 
 jobs:
+  # Exercises the patcher against Kotlin compiled here, so a broken patch is
+  # caught even when get.videolan.org cannot be reached.
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch tools
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o smali.jar "$SMALI_URL"
+          echo "$SMALI_SHA256  smali.jar" | sha256sum -c -
+          curl -fsSL --retry 3 -o baksmali.jar "$BAKSMALI_URL"
+          echo "$BAKSMALI_SHA256  baksmali.jar" | sha256sum -c -
+          curl -fsSL --retry 3 -o dalvik-dx.jar "$DX_URL"
+          echo "$DX_SHA256  dalvik-dx.jar" | sha256sum -c -
+          curl -fsSL --retry 3 -o kotlinc.zip "$KOTLINC_URL"
+          echo "$KOTLINC_SHA256  kotlinc.zip" | sha256sum -c -
+          unzip -q kotlinc.zip
+
+      - name: Run selftest
+        run: |
+          set -euo pipefail
+          KOTLINC=$PWD/kotlinc/bin/kotlinc \
+          DX_JAR=$PWD/dalvik-dx.jar \
+          BAKSMALI_JAR=$PWD/baksmali.jar \
+          SMALI_JAR=$PWD/smali.jar \
+          scripts/vlc-pip/selftest.sh
+
   build:
     runs-on: ubuntu-latest
     steps:
@@ -49,13 +84,15 @@ jobs:
           echo "BUILD_TOOLS=$tools" >> "$GITHUB_ENV"
           echo "using $tools"
 
-      - name: Fetch apktool
+      - name: Fetch smali tooling
         run: |
           set -euo pipefail
-          url="https://github.com/iBotPeaches/Apktool/releases/download/v${APKTOOL_VERSION}/apktool_${APKTOOL_VERSION}.jar"
-          curl -fsSL --retry 3 -o apktool.jar "$url"
-          echo "${APKTOOL_SHA256}  apktool.jar" | sha256sum -c -
-          echo "APKTOOL_JAR=$PWD/apktool.jar" >> "$GITHUB_ENV"
+          curl -fsSL --retry 3 -o smali.jar "$SMALI_URL"
+          echo "$SMALI_SHA256  smali.jar" | sha256sum -c -
+          curl -fsSL --retry 3 -o baksmali.jar "$BAKSMALI_URL"
+          echo "$BAKSMALI_SHA256  baksmali.jar" | sha256sum -c -
+          echo "SMALI_JAR=$PWD/smali.jar" >> "$GITHUB_ENV"
+          echo "BAKSMALI_JAR=$PWD/baksmali.jar" >> "$GITHUB_ENV"
 
       - name: Download official VLC APKs
         id: download
